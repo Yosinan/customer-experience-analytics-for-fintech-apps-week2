@@ -11,6 +11,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
 from src.database import DatabaseManager
+from src.db_queries import DatabaseQueries, export_database_to_csv
+from src.db_validation import DatabaseValidator
 
 
 def main():
@@ -144,6 +146,93 @@ CREATE INDEX IF NOT EXISTS idx_reviews_theme ON reviews(theme);
 """)
     
     print(f"✓ Schema saved to {schema_file}")
+    
+    # Database Validation
+    print("\n" + "-" * 60)
+    print("Running database validation...")
+    print("-" * 60)
+    
+    validator = DatabaseValidator(db)
+    validation_results = validator.run_full_validation()
+    
+    # Schema validation
+    if validation_results["schema"]["valid"]:
+        print("✓ Schema validation passed")
+    else:
+        print("✗ Schema validation failed:")
+        for error in validation_results["schema"]["errors"]:
+            print(f"  - {error}")
+    
+    if validation_results["schema"]["warnings"]:
+        print("⚠ Schema warnings:")
+        for warning in validation_results["schema"]["warnings"]:
+            print(f"  - {warning}")
+    
+    # Data integrity validation
+    if validation_results["data_integrity"]["valid"]:
+        print("\n✓ Data integrity validation passed")
+    else:
+        print("\n✗ Data integrity validation failed:")
+        for error in validation_results["data_integrity"]["errors"]:
+            print(f"  - {error}")
+    
+    if validation_results["data_integrity"]["warnings"]:
+        print("⚠ Data integrity warnings:")
+        for warning in validation_results["data_integrity"]["warnings"]:
+            print(f"  - {warning}")
+    
+    # Data quality metrics
+    quality = validation_results["data_quality"]
+    if "metrics" in quality:
+        print("\nData Quality Metrics:")
+        metrics = quality["metrics"]
+        print(f"  Total reviews: {metrics.get('total_reviews', 0)}")
+        print(f"  Unique banks: {metrics.get('unique_banks', 0)}")
+        print(f"  Reviews with rating: {metrics.get('reviews_with_rating', 0)}")
+        print(f"  Reviews with sentiment: {metrics.get('reviews_with_sentiment', 0)}")
+        print(f"  Reviews with theme: {metrics.get('reviews_with_theme', 0)}")
+        if metrics.get('avg_rating'):
+            print(f"  Average rating: {metrics['avg_rating']:.2f}")
+        if metrics.get('avg_sentiment_score'):
+            print(f"  Average sentiment score: {metrics['avg_sentiment_score']:.3f}")
+    
+    if quality.get("warnings"):
+        print("\n⚠ Data quality warnings:")
+        for warning in quality["warnings"]:
+            print(f"  - {warning}")
+    
+    # Database Queries Examples
+    print("\n" + "-" * 60)
+    print("Database Query Examples")
+    print("-" * 60)
+    
+    queries = DatabaseQueries(db)
+    
+    # Get bank statistics
+    bank_stats = queries.get_bank_statistics()
+    if not bank_stats.empty:
+        print("\nBank Statistics:")
+        print(bank_stats.to_string(index=False))
+        
+        # Save to file
+        bank_stats.to_csv("data/bank_statistics_db.csv", index=False)
+        print(f"\n✓ Bank statistics saved to data/bank_statistics_db.csv")
+    
+    # Get theme statistics
+    theme_stats = queries.get_theme_statistics()
+    if not theme_stats.empty:
+        print("\nTheme Statistics:")
+        print(theme_stats.head(10).to_string(index=False))
+        
+        # Save to file
+        theme_stats.to_csv("data/theme_statistics_db.csv", index=False)
+        print(f"✓ Theme statistics saved to data/theme_statistics_db.csv")
+    
+    # Export database to CSV
+    print("\n" + "-" * 60)
+    print("Exporting database to CSV files...")
+    print("-" * 60)
+    export_database_to_csv(db, output_dir="data/exports")
     
     # Close connection
     db.close()
