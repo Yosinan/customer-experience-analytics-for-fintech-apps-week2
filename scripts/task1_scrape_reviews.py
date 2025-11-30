@@ -10,6 +10,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.scraper import scrape_all_banks
+from src.data_validation import validate_review_data, clean_review_data, generate_quality_report
 import pandas as pd
 
 
@@ -37,20 +38,32 @@ def main():
     df.to_csv(raw_output, index=False)
     print(f"\n✓ Raw reviews saved to {raw_output}")
     
-    # Additional preprocessing: remove empty reviews, ensure data quality
-    df_clean = df.copy()
-    df_clean = df_clean[df_clean['review'].str.strip().str.len() > 0]
+    # Validate data quality
+    print("\n" + "-" * 60)
+    print("Validating data quality...")
+    print("-" * 60)
     
-    # Check data quality
-    missing_pct = (df_clean.isnull().sum() / len(df_clean) * 100).round(2)
-    print(f"\nData Quality Check:")
-    print(f"  Total reviews: {len(df_clean)}")
-    print(f"  Missing data percentage:\n{missing_pct}")
+    validation = validate_review_data(df)
     
-    if missing_pct.max() > 5:
-        print(f"\n⚠ Warning: Some columns have >5% missing data")
-    else:
-        print(f"\n✓ Data quality check passed (<5% missing data)")
+    if validation['errors']:
+        print("\n✗ Validation Errors Found:")
+        for error in validation['errors']:
+            print(f"  - {error}")
+    
+    if validation['warnings']:
+        print("\n⚠ Warnings:")
+        for warning in validation['warnings']:
+            print(f"  - {warning}")
+    
+    # Clean data based on validation
+    print("\nCleaning data...")
+    df_clean = clean_review_data(df)
+    
+    # Generate quality report
+    report_path = "data/quality_report.txt"
+    os.makedirs("data", exist_ok=True)
+    quality_report = generate_quality_report(df_clean, output_path=report_path)
+    print("\n" + quality_report)
     
     # Save cleaned data
     clean_output = "data/cleaned_reviews.csv"
