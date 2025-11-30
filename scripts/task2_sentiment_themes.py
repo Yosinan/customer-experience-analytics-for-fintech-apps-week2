@@ -12,6 +12,16 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pandas as pd
 from src.sentiment_analysis import SentimentAnalyzer, aggregate_sentiment_by_bank
 from src.thematic_analysis import ThematicAnalyzer, assign_manual_themes
+from src.sentiment_comparison import (
+    analyze_sentiment_by_rating,
+    analyze_sentiment_by_theme,
+    identify_sentiment_drivers,
+    calculate_sentiment_consistency
+)
+from src.theme_clustering import (
+    analyze_theme_sentiment_correlation,
+    identify_theme_trends
+)
 import numpy as np
 
 
@@ -112,6 +122,68 @@ def main():
     keywords_df.to_csv(keywords_file, index=False)
     print(f"✓ Keywords saved to {keywords_file}")
     
+    # Advanced Analysis
+    print("\n" + "-" * 60)
+    print("Advanced Sentiment Analysis")
+    print("-" * 60)
+    
+    # Analyze sentiment by rating
+    sentiment_by_rating = analyze_sentiment_by_rating(df)
+    print("\nSentiment Analysis by Rating:")
+    print(sentiment_by_rating.to_string(index=False))
+    
+    # Analyze sentiment by theme
+    if 'theme' in df.columns:
+        sentiment_by_theme = analyze_sentiment_by_theme(df)
+        print("\nSentiment Analysis by Theme:")
+        print(sentiment_by_theme.to_string(index=False))
+        
+        # Theme-sentiment correlation
+        theme_correlation = analyze_theme_sentiment_correlation(df)
+        print("\nTheme-Sentiment Correlation:")
+        print(theme_correlation.to_string(index=False))
+    
+    # Sentiment consistency metrics
+    consistency = calculate_sentiment_consistency(df)
+    print("\nSentiment Consistency Metrics:")
+    for key, value in consistency.items():
+        if isinstance(value, float):
+            print(f"  {key}: {value:.3f}")
+        else:
+            print(f"  {key}: {value}")
+    
+    # Identify sentiment drivers for each bank
+    print("\n" + "-" * 60)
+    print("Sentiment Drivers Analysis")
+    print("-" * 60)
+    
+    for bank in df['bank'].unique():
+        drivers = identify_sentiment_drivers(df, bank_name=bank)
+        print(f"\n{bank}:")
+        if drivers['insights']:
+            for insight in drivers['insights']:
+                print(f"  - {insight}")
+        if 'positive_drivers' in drivers and 'count' in drivers['positive_drivers']:
+            print(f"  Positive reviews: {drivers['positive_drivers']['count']}")
+        if 'negative_drivers' in drivers and 'count' in drivers['negative_drivers']:
+            print(f"  Negative reviews: {drivers['negative_drivers']['count']}")
+    
+    # Theme trends (if dates are available)
+    if 'date' in df.columns:
+        print("\n" + "-" * 60)
+        print("Theme Trends Analysis")
+        print("-" * 60)
+        try:
+            theme_trends = identify_theme_trends(df)
+            if theme_trends:
+                print("\nTheme Trends Over Time:")
+                for theme, trend_data in theme_trends.items():
+                    print(f"  {theme}: {trend_data['trend']} "
+                          f"(recent: {trend_data['recent_avg']:.1f}, "
+                          f"earlier: {trend_data['earlier_avg']:.1f})")
+        except Exception as e:
+            print(f"  Could not analyze trends: {e}")
+    
     # Summary statistics
     print("\n" + "=" * 60)
     print("Summary Statistics")
@@ -128,6 +200,21 @@ def main():
         print(f"  Top themes:")
         for theme, count in bank_df['theme'].value_counts().head(3).items():
             print(f"    {theme}: {count}")
+    
+    # Save additional analysis results
+    os.makedirs("data", exist_ok=True)
+    
+    if not sentiment_by_rating.empty:
+        sentiment_by_rating.to_csv("data/sentiment_by_rating.csv", index=False)
+        print(f"\n✓ Sentiment by rating saved to data/sentiment_by_rating.csv")
+    
+    if 'theme' in df.columns and not sentiment_by_theme.empty:
+        sentiment_by_theme.to_csv("data/sentiment_by_theme.csv", index=False)
+        print(f"✓ Sentiment by theme saved to data/sentiment_by_theme.csv")
+    
+    if 'theme' in df.columns and not theme_correlation.empty:
+        theme_correlation.to_csv("data/theme_sentiment_correlation.csv", index=False)
+        print(f"✓ Theme-sentiment correlation saved to data/theme_sentiment_correlation.csv")
     
     print("\n" + "=" * 60)
     print("Task 2 completed successfully!")
