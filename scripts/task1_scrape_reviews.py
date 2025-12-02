@@ -11,7 +11,20 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.scraper import scrape_all_banks
 from src.data_validation import validate_review_data, clean_review_data, generate_quality_report
+from src.config import Config
+from src.utils import setup_logging, safe_file_operation
 import pandas as pd
+import logging
+
+# Set up logging
+logger = setup_logging(
+    log_level=Config.LOG_LEVEL,
+    log_file=Config.LOG_FILE,
+    log_format=Config.LOG_FORMAT
+)
+
+# Ensure directories exist
+Config.ensure_directories()
 
 
 def main():
@@ -22,21 +35,22 @@ def main():
     print("Task 1: Data Collection and Preprocessing")
     print("=" * 60)
     
-    # Create data directory if it doesn't exist
-    os.makedirs("data", exist_ok=True)
-    
-    # Scrape reviews for all banks (minimum 400 per bank)
-    print("\nStarting review scraping...")
-    df = scrape_all_banks(min_reviews_per_bank=400)
+    # Scrape reviews for all banks
+    logger.info("Starting review scraping...")
+    df = scrape_all_banks(min_reviews_per_bank=Config.SCRAPE_MIN_REVIEWS_PER_BANK)
     
     if df.empty:
-        print("\n✗ Failed to collect reviews. Exiting.")
+        logger.error("Failed to collect reviews. Exiting.")
         return
     
-    # Save raw data
-    raw_output = "data/raw_reviews.csv"
-    df.to_csv(raw_output, index=False)
-    print(f"\n✓ Raw reviews saved to {raw_output}")
+    # Save raw data with error handling
+    raw_output = os.path.join(Config.DATA_DIR, "raw_reviews.csv")
+    try:
+        df.to_csv(raw_output, index=False)
+        logger.info(f"✓ Raw reviews saved to {raw_output}")
+    except Exception as e:
+        logger.error(f"Failed to save raw reviews: {e}", exc_info=True)
+        return
     
     # Validate data quality
     print("\n" + "-" * 60)
@@ -60,15 +74,21 @@ def main():
     df_clean = clean_review_data(df)
     
     # Generate quality report
-    report_path = "data/quality_report.txt"
-    os.makedirs("data", exist_ok=True)
-    quality_report = generate_quality_report(df_clean, output_path=report_path)
-    print("\n" + quality_report)
+    report_path = os.path.join(Config.DATA_DIR, "quality_report.txt")
+    try:
+        quality_report = generate_quality_report(df_clean, output_path=report_path)
+        logger.info("\n" + quality_report)
+    except Exception as e:
+        logger.error(f"Failed to generate quality report: {e}", exc_info=True)
     
-    # Save cleaned data
-    clean_output = "data/cleaned_reviews.csv"
-    df_clean.to_csv(clean_output, index=False)
-    print(f"\n✓ Cleaned reviews saved to {clean_output}")
+    # Save cleaned data with error handling
+    clean_output = os.path.join(Config.DATA_DIR, "cleaned_reviews.csv")
+    try:
+        df_clean.to_csv(clean_output, index=False)
+        logger.info(f"✓ Cleaned reviews saved to {clean_output}")
+    except Exception as e:
+        logger.error(f"Failed to save cleaned reviews: {e}", exc_info=True)
+        return
     
     # Summary statistics
     print(f"\nSummary Statistics:")

@@ -24,7 +24,20 @@ from src.sentiment_analysis import SentimentAnalyzer, aggregate_sentiment_by_ban
 from src.text_preprocessing import TextPreprocessor, document_preprocessing_pipeline
 from src.thematic_analysis import ThematicAnalyzer
 from src.theme_grouping import identify_themes_per_bank, document_theme_grouping_logic
+from src.config import Config
+from src.utils import setup_logging, safe_file_operation
 import numpy as np
+import logging
+
+# Set up logging
+logger = setup_logging(
+    log_level=Config.LOG_LEVEL,
+    log_file=Config.LOG_FILE,
+    log_format=Config.LOG_FORMAT
+)
+
+# Ensure directories exist
+Config.ensure_directories()
 
 
 def main():
@@ -35,14 +48,18 @@ def main():
     print("Task 2: Sentiment and Thematic Analysis")
     print("=" * 60)
     
-    # Load cleaned reviews
-    input_file = "data/cleaned_reviews.csv"
+    # Load cleaned reviews with error handling
+    input_file = os.path.join(Config.DATA_DIR, "cleaned_reviews.csv")
     if not os.path.exists(input_file):
-        print(f"✗ Error: {input_file} not found. Please run Task 1 first.")
+        logger.error(f"✗ Error: {input_file} not found. Please run Task 1 first.")
         return
     
-    df = pd.read_csv(input_file)
-    print(f"\n✓ Loaded {len(df)} reviews")
+    try:
+        df = pd.read_csv(input_file)
+        logger.info(f"\n✓ Loaded {len(df)} reviews")
+    except Exception as e:
+        logger.error(f"Failed to load cleaned reviews: {e}", exc_info=True)
+        return
     
     # Add review_id if not present
     if 'review_id' not in df.columns:
@@ -215,48 +232,58 @@ def main():
     # Ensure theme column is named correctly
     output_df.rename(columns={'theme': 'identified_theme'}, inplace=True)
     
-    # Save main results
-    output_file = "data/analyzed_reviews.csv"
-    output_df.to_csv(output_file, index=False)
-    print(f"\n✓ Analyzed reviews saved to {output_file}")
-    print(f"  Columns: {', '.join(output_df.columns)}")
-    print(f"  Total reviews: {len(output_df)}")
+    # Save main results with error handling
+    output_file = os.path.join(Config.DATA_DIR, "analyzed_reviews.csv")
+    try:
+        output_df.to_csv(output_file, index=False)
+        logger.info(f"\n✓ Analyzed reviews saved to {output_file}")
+        logger.info(f"  Columns: {', '.join(output_df.columns)}")
+        logger.info(f"  Total reviews: {len(output_df)}")
+    except Exception as e:
+        logger.error(f"Failed to save analyzed reviews: {e}", exc_info=True)
+        return
     
-    # Save keywords by bank
-    keywords_file = "data/keywords_by_bank.csv"
-    keywords_data = []
-    for bank, keywords in keywords_by_bank.items():
-        for keyword, score in keywords:
-            keywords_data.append({
-                'bank': bank,
-                'keyword': keyword,
-                'tfidf_score': score
-            })
-    keywords_df = pd.DataFrame(keywords_data)
-    keywords_df.to_csv(keywords_file, index=False)
-    print(f"✓ Keywords saved to {keywords_file}")
+    # Save keywords by bank with error handling
+    keywords_file = os.path.join(Config.DATA_DIR, "keywords_by_bank.csv")
+    try:
+        keywords_data = []
+        for bank, keywords in keywords_by_bank.items():
+            for keyword, score in keywords:
+                keywords_data.append({
+                    'bank': bank,
+                    'keyword': keyword,
+                    'tfidf_score': score
+                })
+        keywords_df = pd.DataFrame(keywords_data)
+        keywords_df.to_csv(keywords_file, index=False)
+        logger.info(f"✓ Keywords saved to {keywords_file}")
+    except Exception as e:
+        logger.error(f"Failed to save keywords: {e}", exc_info=True)
     
-    # Save theme grouping documentation
-    theme_doc_file = "data/theme_grouping_documentation.txt"
-    with open(theme_doc_file, 'w') as f:
-        f.write("=" * 60 + "\n")
-        f.write("THEME GROUPING DOCUMENTATION\n")
-        f.write("=" * 60 + "\n\n")
+    # Save theme grouping documentation with error handling
+    theme_doc_file = os.path.join(Config.DATA_DIR, "theme_grouping_documentation.txt")
+    try:
+        with open(theme_doc_file, 'w', encoding='utf-8') as f:
+            f.write("=" * 60 + "\n")
+            f.write("THEME GROUPING DOCUMENTATION\n")
+            f.write("=" * 60 + "\n\n")
+            
+            f.write("PREPROCESSING PIPELINE:\n")
+            f.write("-" * 60 + "\n")
+            f.write(document_preprocessing_pipeline())
+            f.write("\n\n")
+            
+            f.write("THEME GROUPING LOGIC PER BANK:\n")
+            f.write("=" * 60 + "\n\n")
+            
+            for bank_name, themes in themes_by_bank.items():
+                doc = document_theme_grouping_logic(bank_name, themes)
+                f.write(doc)
+                f.write("\n" + "=" * 60 + "\n\n")
         
-        f.write("PREPROCESSING PIPELINE:\n")
-        f.write("-" * 60 + "\n")
-        f.write(document_preprocessing_pipeline())
-        f.write("\n\n")
-        
-        f.write("THEME GROUPING LOGIC PER BANK:\n")
-        f.write("=" * 60 + "\n\n")
-        
-        for bank_name, themes in themes_by_bank.items():
-            doc = document_theme_grouping_logic(bank_name, themes)
-            f.write(doc)
-            f.write("\n" + "=" * 60 + "\n\n")
-    
-    print(f"✓ Theme grouping documentation saved to {theme_doc_file}")
+        logger.info(f"✓ Theme grouping documentation saved to {theme_doc_file}")
+    except Exception as e:
+        logger.error(f"Failed to save theme documentation: {e}", exc_info=True)
     
     # Summary Statistics
     print("\n" + "=" * 60)

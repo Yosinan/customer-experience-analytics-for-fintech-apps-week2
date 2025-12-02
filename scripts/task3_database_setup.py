@@ -13,6 +13,19 @@ import pandas as pd
 from src.database import DatabaseManager
 from src.db_queries import DatabaseQueries, export_database_to_csv
 from src.db_validation import DatabaseValidator
+from src.config import Config
+from src.utils import setup_logging
+import logging
+
+# Set up logging
+logger = setup_logging(
+    log_level=Config.LOG_LEVEL,
+    log_file=Config.LOG_FILE,
+    log_format=Config.LOG_FORMAT
+)
+
+# Ensure directories exist
+Config.ensure_directories()
 
 
 def main():
@@ -23,22 +36,21 @@ def main():
     print("Task 3: Store Cleaned Data in PostgreSQL")
     print("=" * 60)
     
-    # Load analyzed reviews
-    input_file = "data/analyzed_reviews.csv"
+    # Load analyzed reviews with error handling
+    input_file = os.path.join(Config.DATA_DIR, "analyzed_reviews.csv")
     if not os.path.exists(input_file):
-        print(f"✗ Error: {input_file} not found. Please run Task 2 first.")
+        logger.error(f"✗ Error: {input_file} not found. Please run Task 2 first.")
         return
     
-    df = pd.read_csv(input_file)
-    print(f"\n✓ Loaded {len(df)} analyzed reviews")
+    try:
+        df = pd.read_csv(input_file)
+        logger.info(f"\n✓ Loaded {len(df)} analyzed reviews")
+    except Exception as e:
+        logger.error(f"Failed to load analyzed reviews: {e}", exc_info=True)
+        return
     
     # Initialize database manager
-    database_url = os.getenv(
-        "DATABASE_URL",
-        "postgres://joey:yosinan@localhost:5432/kaim?schema=public"
-    )
-    
-    db = DatabaseManager(database_url=database_url)
+    db = DatabaseManager(database_url=Config.get_database_url())
     
     # Connect to database
     print("\nConnecting to database...")
@@ -104,13 +116,14 @@ def main():
     for sentiment, count in verification.get('sentiment_distribution', []):
         print(f"  {sentiment}: {count}")
     
-    # Save schema to file
-    print("\n" + "-" * 60)
-    print("Saving database schema...")
-    print("-" * 60)
+    # Save schema to file with error handling
+    logger.info("\n" + "-" * 60)
+    logger.info("Saving database schema...")
+    logger.info("-" * 60)
     
     schema_file = "database_schema.sql"
-    with open(schema_file, 'w') as f:
+    try:
+        with open(schema_file, 'w', encoding='utf-8') as f:
         f.write("""
 -- Database Schema for Bank Reviews
 -- Generated for Task 3
@@ -144,8 +157,9 @@ CREATE INDEX IF NOT EXISTS idx_reviews_rating ON reviews(rating);
 CREATE INDEX IF NOT EXISTS idx_reviews_sentiment ON reviews(sentiment_label);
 CREATE INDEX IF NOT EXISTS idx_reviews_theme ON reviews(theme);
 """)
-    
-    print(f"✓ Schema saved to {schema_file}")
+        logger.info(f"✓ Schema saved to {schema_file}")
+    except Exception as e:
+        logger.error(f"Failed to save schema file: {e}", exc_info=True)
     
     # Database Validation
     print("\n" + "-" * 60)

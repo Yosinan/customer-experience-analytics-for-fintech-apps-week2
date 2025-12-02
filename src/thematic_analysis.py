@@ -11,6 +11,13 @@ import spacy
 from collections import Counter
 from typing import List, Dict, Tuple
 import re
+import logging
+
+from src.config import Config
+from src.utils import log_execution_time
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 class ThematicAnalyzer:
@@ -19,12 +26,17 @@ class ThematicAnalyzer:
     """
     
     def __init__(self):
-        """Initialize thematic analyzer."""
+        """Initialize thematic analyzer with error handling."""
         try:
+            logger.info("Loading spaCy model 'en_core_web_sm'...")
             self.nlp = spacy.load("en_core_web_sm")
-        except OSError:
-            print("Warning: spaCy model 'en_core_web_sm' not found.")
-            print("Install with: python -m spacy download en_core_web_sm")
+            logger.info("✓ spaCy model loaded successfully")
+        except OSError as e:
+            logger.warning(f"spaCy model 'en_core_web_sm' not found: {e}")
+            logger.warning("Install with: python -m spacy download en_core_web_sm")
+            self.nlp = None
+        except Exception as e:
+            logger.error(f"Unexpected error loading spaCy model: {e}")
             self.nlp = None
     
     def preprocess_text(self, text: str) -> str:
@@ -97,8 +109,11 @@ class ThematicAnalyzer:
             keyword_scores.sort(key=lambda x: x[1], reverse=True)
             
             return keyword_scores
+        except ValueError as e:
+            logger.error(f"Value error in TF-IDF extraction (likely insufficient data): {e}")
+            return []
         except Exception as e:
-            print(f"Error in TF-IDF extraction: {e}")
+            logger.error(f"Error in TF-IDF extraction: {e}", exc_info=True)
             return []
     
     def extract_keywords_spacy(self, texts: List[str], top_n: int = 50) -> List[str]:
@@ -194,8 +209,11 @@ class ThematicAnalyzer:
                 themes[theme_name] = top_words
             
             return themes
+        except ValueError as e:
+            logger.error(f"Value error in theme identification (likely insufficient data): {e}")
+            return {}
         except Exception as e:
-            print(f"Error in theme identification: {e}")
+            logger.error(f"Error in theme identification: {e}", exc_info=True)
             return {}
     
     def assign_theme_to_review(

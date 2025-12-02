@@ -19,6 +19,19 @@ from src.insights import (
     cluster_complaints
 )
 from src.visualizations import create_all_visualizations
+from src.config import Config
+from src.utils import setup_logging
+import logging
+
+# Set up logging
+logger = setup_logging(
+    log_level=Config.LOG_LEVEL,
+    log_file=Config.LOG_FILE,
+    log_format=Config.LOG_FORMAT
+)
+
+# Ensure directories exist
+Config.ensure_directories()
 
 
 def main():
@@ -29,23 +42,28 @@ def main():
     print("Task 4: Insights and Recommendations")
     print("=" * 60)
     
-    # Load analyzed reviews
-    input_file = "data/analyzed_reviews.csv"
+    # Load analyzed reviews with error handling
+    input_file = os.path.join(Config.DATA_DIR, "analyzed_reviews.csv")
     if not os.path.exists(input_file):
-        print(f"✗ Error: {input_file} not found. Please run Task 2 first.")
+        logger.error(f"✗ Error: {input_file} not found. Please run Task 2 first.")
         return
     
-    df = pd.read_csv(input_file)
-    print(f"\n✓ Loaded {len(df)} analyzed reviews")
+    try:
+        df = pd.read_csv(input_file)
+        logger.info(f"\n✓ Loaded {len(df)} analyzed reviews")
+    except Exception as e:
+        logger.error(f"Failed to load analyzed reviews: {e}", exc_info=True)
+        return
     
-    # Create figures directory
-    os.makedirs("figures", exist_ok=True)
-    
-    # Generate visualizations
-    print("\n" + "-" * 60)
-    print("Generating visualizations...")
-    print("-" * 60)
-    create_all_visualizations(df, output_dir="figures")
+    # Generate visualizations with error handling
+    logger.info("\n" + "-" * 60)
+    logger.info("Generating visualizations...")
+    logger.info("-" * 60)
+    try:
+        create_all_visualizations(df, output_dir=Config.FIGURES_DIR)
+    except Exception as e:
+        logger.error(f"Failed to create visualizations: {e}", exc_info=True)
+        return
     
     # Bank comparison
     print("\n" + "-" * 60)
@@ -129,15 +147,15 @@ def main():
             if bank_data['sample_reviews']:
                 print(f"      Sample: \"{bank_data['sample_reviews'][0][:100]}...\"")
     
-    # Save insights to file
-    print("\n" + "-" * 60)
-    print("Saving insights...")
-    print("-" * 60)
+    # Save insights to file with error handling
+    logger.info("\n" + "-" * 60)
+    logger.info("Saving insights...")
+    logger.info("-" * 60)
     
-    insights_file = "summary/insights_summary.txt"
-    os.makedirs("summary", exist_ok=True)
+    insights_file = os.path.join(Config.SUMMARY_DIR, "insights_summary.txt")
     
-    with open(insights_file, 'w') as f:
+    try:
+        with open(insights_file, 'w', encoding='utf-8') as f:
         f.write("=" * 60 + "\n")
         f.write("INSIGHTS SUMMARY\n")
         f.write("=" * 60 + "\n\n")
@@ -167,8 +185,9 @@ def main():
             for i, rec in enumerate(all_recommendations[bank], 1):
                 f.write(f"  {i}. {rec}\n")
             f.write("\n")
-    
-    print(f"✓ Insights saved to {insights_file}")
+        logger.info(f"✓ Insights saved to {insights_file}")
+    except Exception as e:
+        logger.error(f"Failed to save insights: {e}", exc_info=True)
     
     print("\n" + "=" * 60)
     print("Task 4 completed successfully!")
